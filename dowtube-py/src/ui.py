@@ -150,7 +150,6 @@ class App(ctk.CTk):
         self.status_lbl.grid(row=3, column=0, columnspan=2, padx=20, pady=(0, 12))
 
     def _on_url_change(self, event=None):
-        """Chamado a cada tecla/paste; dispara fetch da capa se URL mudou."""
         url = self.url_entry.get().strip()
         m   = _YT_RE.search(url)
         if not m:
@@ -171,10 +170,6 @@ class App(ctk.CTk):
         ).start()
 
     def _fetch_thumbnail(self, video_id: str):
-        """
-        Tenta buscar a capa em ordem decrescente de qualidade.
-        Roda em thread separada para não travar a UI.
-        """
         urls = [
             f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",
             f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
@@ -198,11 +193,9 @@ class App(ctk.CTk):
         self.after(0, self._reset_thumbnail)
 
     def _set_thumbnail(self, img: ctk.CTkImage):
-        """Exibe a capa no label (thread principal)."""
         self.thumbnail_label.configure(image=img, text="")
 
     def _reset_thumbnail(self, loading: bool = False):
-        """Volta ao placeholder (ou mostra '…' enquanto carrega)."""
         self.thumbnail_label.configure(
             image=None,
             text="…" if loading else "▶",
@@ -278,8 +271,6 @@ class App(ctk.CTk):
         self.after(0, lambda: self.dl_btn.configure(state="normal"))
 
 class AboutWindow(ctk.CTkToplevel):
-    """Janela modal estilizada com informações do projeto."""
-
     _W, _H = 380, 320
 
     def __init__(self, parent):
@@ -386,11 +377,6 @@ class AboutWindow(ctk.CTkToplevel):
 
     @staticmethod
     def _load_svg_logo(path: str, size: int = 64) -> "ctk.CTkImage | None":
-        """
-        Tenta converter logo.svg → CTkImage usando cairosvg (preferido)
-        ou svglib como fallback. Retorna None se nenhum estiver disponível
-        ou o arquivo não existir.
-        """
         import os
         if not os.path.isfile(path):
             return None

@@ -41,6 +41,7 @@ object MediaStoreExporter {
         } else {
             "${Environment.DIRECTORY_DOWNLOADS}/$DIR_NAME"
         }
+        val visible = "/storage/emulated/0/$relativePath/${source.name}"
 
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, source.name)
@@ -70,10 +71,18 @@ object MediaStoreExporter {
 
         values.clear()
         values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-        resolver.update(uri, values, null, null)
+        try {
+            resolver.update(uri, values, null, null)
+        } catch (e: Exception) {
+            if (!File(visible).exists()) {
+                Log.w(TAG, "Falha ao finalizar ${source.name} no MediaStore", e)
+                resolver.delete(uri, null, null)
+                return null
+            }
+            Log.w(TAG, "Entrada já finalizada pelo MediaStore; seguindo.", e)
+        }
 
         source.delete()
-        val visible = "/storage/emulated/0/$relativePath/${source.name}"
         Log.i(TAG, "Exportado para $visible")
         return visible
     }

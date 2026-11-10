@@ -1,30 +1,15 @@
-"""
-Módulo Python chamado pelo Kotlin via Chaquopy.
-
-Ponte de comunicação:
-    Kotlin (DownloadEngine.submit)  --->  download(...)   [esta função]
-    Kotlin (DownloadListener)       <---  listener.onProgress/onComplete/onError
-
-A função `download` é executada na thread "python-bridge" criada em
-DownloadEngine.kt — nunca na UI thread. O GIL do Python serializa o
-código; um download por vez é processado.
-"""
-
 import os
 
 import yt_dlp
 
 
 def _build_opts(quality, output_dir, ffmpeg_path, listener, task_id):
-    """Monta as opções do yt_dlp, espelhando o app desktop (downloader.py).
+    final_ext = None
 
-    Nota sobre o YouTube (2025+): a extração sem runtime de JavaScript não
-    disponibiliza nenhum formato *combinado* (vídeo+áudio no mesmo fluxo),
-    apenas fluxos DASH separados. Por isso o formato principal é sempre
-    ``bestvideo+bestaudio`` (exige FFmpeg para mesclar) — e não ``best``.
-    """
     if quality == "audio":
-        fmt = "bestaudio/best"
+        fmt = "bestaudio[ext=m4a]/bestaudio/best"
+        if ffmpeg_path:
+            final_ext = "mp3"
     elif ffmpeg_path:
         fmt = (
             f"bestvideo[height<={quality}][vcodec^=avc1]"
@@ -33,6 +18,7 @@ def _build_opts(quality, output_dir, ffmpeg_path, listener, task_id):
             f"/bestvideo[height<={quality}]+bestaudio"
             f"/best[height<={quality}]"
         )
+        final_ext = "mp4"
     else:
         fmt = f"best[height<={quality}]/best"
 
@@ -48,13 +34,19 @@ def _build_opts(quality, output_dir, ffmpeg_path, listener, task_id):
 
     if ffmpeg_path:
         opts["ffmpeg_location"] = ffmpeg_path
+    if final_ext == "mp3":
+        opts["postprocessors"] = [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }
+        ]
 
-    return opts
+    return opts, final_ext
 
 
 def _progress_hook(listener, task_id):
-    """Cria o hook de progresso que notifica o Kotlin (thread-safe)."""
-
     def hook(d):
         if d.get("status") == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
@@ -70,28 +62,52 @@ def _progress_hook(listener, task_id):
     return hook
 
 
+def _final_path_hook(store):
+    def hook(d):
+        if d.get("status") != "finished":
+            return
+        path = (d.get("info_dict") or {}).get("filepath")
+        if path:
+            store["path"] = path
+
+    return hook
+
+
+def _resolve_file_path(ydl, info, hooked_path, final_ext):
+    candidates = []
+
+    if hooked_path:
+        candidates.append(hooked_path)
+    if info.get("filepath"):
+        candidates.append(info["filepath"])
+
+    if final_ext:
+        adjusted = dict(info)
+        adjusted["ext"] = final_ext
+        candidates.append(ydl.prepare_filename(adjusted))
+    else:
+        candidates.append(ydl.prepare_filename(info))
+
+    for path in candidates:
+        if path and os.path.exists(path):
+            return path
+
+    return candidates[0]
+
+
 def download(task_id, url, quality, output_dir, ffmpeg_path, listener):
-    """
-    Executa o download de `url` e reporta o estado via `listener`.
-
-    Args:
-        task_id:    identificador gerado no Kotlin, ecoado nos callbacks;
-        url:        URL do vídeo;
-        quality:    "360" | "720" | "1080" | "audio";
-        output_dir: diretório absoluto de saída (app-specific storage);
-        ffmpeg_path: caminho absoluto do FFmpeg ou None;
-        listener:   objeto Java (DownloadListener) com os callbacks.
-
-    Returns:
-        caminho do arquivo baixado, ou None em caso de erro.
-    """
     try:
-        opts = _build_opts(quality, output_dir, ffmpeg_path, listener, task_id)
+        opts, final_ext = _build_opts(
+            quality, output_dir, ffmpeg_path, listener, task_id
+        )
+
+        hooked = {}
+        opts["postprocessor_hooks"] = [_final_path_hook(hooked)]
 
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
 
-        file_path = info.get("filepath") or ydl.prepare_filename(info)
+        file_path = _resolve_file_path(ydl, info, hooked.get("path"), final_ext)
         listener.onComplete(task_id, file_path)
         return file_path
 
