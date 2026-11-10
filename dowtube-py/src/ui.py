@@ -176,9 +176,9 @@ class App(ctk.CTk):
         Roda em thread separada para não travar a UI.
         """
         urls = [
-            f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",    # 320×180
-            f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",    # 480×360
-            f"https://img.youtube.com/vi/{video_id}/default.jpg",      # 120×90
+            f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg",
+            f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
+            f"https://img.youtube.com/vi/{video_id}/default.jpg",
         ]
         for thumb_url in urls:
             try:
