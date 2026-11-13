@@ -10,7 +10,8 @@
         android:name=".DowTubeApplication"
         android:allowBackup="true"
         android:extractNativeLibs="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="DowTube"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
