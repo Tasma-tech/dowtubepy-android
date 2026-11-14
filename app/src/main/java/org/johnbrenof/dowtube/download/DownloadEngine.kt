@@ -46,4 +46,24 @@ object DownloadEngine {
             }
         }
     }
+
+    fun probe(url: String): PreviewInfo? {
+        if (!Python.isStarted()) return null
+        return try {
+            val downloader = Python.getInstance().getModule("downloader")
+            val raw = downloader.callAttr("probe", url)?.toString() ?: return null
+            val json = org.json.JSONObject(raw)
+            PreviewInfo(
+                title = json.optString("title"),
+                uploader = json.optString("uploader"),
+                thumbnail = json.optString("thumbnail"),
+                duration = json.optLong("duration"),
+                entries = json.optInt("count"),
+                isPlaylist = json.optBoolean("playlist"),
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "Falha ao sondar $url", t)
+            null
+        }
+    }
 }

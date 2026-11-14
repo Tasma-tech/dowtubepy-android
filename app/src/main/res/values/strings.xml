@@ -81,4 +81,19 @@
     <string name="copied">Caminho copiado</string>
     <string name="file_error">Não foi possível abrir o arquivo</string>
     <string name="no_app">Nenhum app encontrado para abrir este link</string>
+
+    <string name="preview_loading">Buscando prévia…</string>
+    <string name="preview_unavailable">Prévia indisponível</string>
+    <string name="preview_playlist">Playlist · %1$d itens</string>
+    <string name="preview_duration">Duração: %1$s</string>
+    <string name="paste_to_download">Cole um link para ver o botão de baixar</string>
+    <string name="browser_hint">Pesquise ou cole o link do conteúdo</string>
+
+    <string name="notif_channel_progress">Downloads em andamento</string>
+    <string name="notif_channel_progress_desc">Progresso dos downloads em segundo plano</string>
+    <string name="notif_channel_done">Downloads concluídos</string>
+    <string name="notif_channel_done_desc">Avisa quando um download termina</string>
+    <string name="notif_starting">Preparando download…</string>
+    <string name="notif_progress">%1$d%% baixado</string>
+    <string name="notif_done_count">%1$d arquivos salvos</string>
 </resources>

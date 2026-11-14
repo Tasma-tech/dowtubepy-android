@@ -81,4 +81,19 @@
     <string name="copied">Path copied</string>
     <string name="file_error">Could not open the file</string>
     <string name="no_app">No app found to open this link</string>
+
+    <string name="preview_loading">Loading preview…</string>
+    <string name="preview_unavailable">Preview unavailable</string>
+    <string name="preview_playlist">Playlist · %1$d items</string>
+    <string name="preview_duration">Duration: %1$s</string>
+    <string name="paste_to_download">Paste a link to show the download button</string>
+    <string name="browser_hint">Search or paste the content link</string>
+
+    <string name="notif_channel_progress">Ongoing downloads</string>
+    <string name="notif_channel_progress_desc">Progress of downloads running in the background</string>
+    <string name="notif_channel_done">Completed downloads</string>
+    <string name="notif_channel_done_desc">Notifies when a download finishes</string>
+    <string name="notif_starting">Preparing download…</string>
+    <string name="notif_progress">%1$d%% downloaded</string>
+    <string name="notif_done_count">%1$d files saved</string>
 </resources>

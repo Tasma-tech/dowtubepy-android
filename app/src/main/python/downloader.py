@@ -421,3 +421,73 @@ def download(task_id, url, media, quality, playlist, output_dir, ffmpeg_path, li
     except Exception as exc:
         listener.onError(task_id, str(exc))
         return None
+
+
+def _thumbnail_of(entry):
+    if not isinstance(entry, dict):
+        return ""
+    thumb = entry.get("thumbnail")
+    if thumb:
+        return thumb
+    thumbs = entry.get("thumbnails")
+    if isinstance(thumbs, list) and thumbs:
+        last = thumbs[-1]
+        if isinstance(last, dict):
+            return last.get("url") or ""
+    return ""
+
+
+def _fallback_thumbnail(entry, url):
+    entry_id = entry.get("id") if isinstance(entry, dict) else None
+    if not entry_id:
+        return ""
+    host = url.lower()
+    if "youtube.com" in host or "youtu.be" in host:
+        return "https://i.ytimg.com/vi/%s/hqdefault.jpg" % entry_id
+    return ""
+
+
+def probe(url):
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extract_flat": "in_playlist",
+        "noplaylist": False,
+        "socket_timeout": 15,
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+    if not info:
+        raise RuntimeError("Link inválido.")
+
+    entries = info.get("entries")
+    if entries is not None:
+        entries = [entry for entry in entries if entry]
+        first = entries[0] if entries else {}
+        return json.dumps(
+            {
+                "title": info.get("title") or first.get("title") or "",
+                "uploader": info.get("channel")
+                or info.get("uploader")
+                or first.get("uploader")
+                or "",
+                "thumbnail": _thumbnail_of(first)
+                or _thumbnail_of(info)
+                or _fallback_thumbnail(first, url),
+                "duration": int(first.get("duration") or 0),
+                "count": len(entries),
+                "playlist": True,
+            }
+        )
+
+    return json.dumps(
+        {
+            "title": info.get("title") or "",
+            "uploader": info.get("channel") or info.get("uploader") or "",
+            "thumbnail": _thumbnail_of(info) or _fallback_thumbnail(info, url),
+            "duration": int(info.get("duration") or 0),
+            "count": 1,
+            "playlist": False,
+        }
+    )

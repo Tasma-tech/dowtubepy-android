@@ -131,6 +131,18 @@ fun openFile(context: Context, path: String) {
     }
 }
 
+fun formatDuration(seconds: Long): String {
+    val total = seconds.coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val s = total % 60
+    return if (h > 0) {
+        String.format("%d:%02d:%02d", h, m, s)
+    } else {
+        String.format("%d:%02d", m, s)
+    }
+}
+
 private fun mimeTypeFor(name: String): String = when {
     name.endsWith(".mp4", true) -> "video/mp4"
     name.endsWith(".webm", true) -> "video/webm"

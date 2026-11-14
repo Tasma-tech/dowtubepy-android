@@ -4,6 +4,7 @@ data class DownloadItem(
     val id: String,
     val url: String,
     val title: String = url,
+    val thumbnail: String = "",
     val media: String = MEDIA_VIDEO,
     val quality: String = QUALITY_MAX,
     val playlist: Boolean = false,
