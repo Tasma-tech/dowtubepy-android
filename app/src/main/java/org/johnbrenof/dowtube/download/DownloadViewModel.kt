@@ -17,8 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
-
-data class QualityOption(val value: String, val label: String)
+import org.johnbrenof.dowtube.settings.AppSettings
 
 class DownloadViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -30,23 +29,18 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     private val _urlInput = MutableStateFlow("")
     val urlInput: StateFlow<String> = _urlInput.asStateFlow()
 
-    private val _quality = MutableStateFlow(DEFAULT_QUALITY)
-    val quality: StateFlow<QualityOption> = _quality.asStateFlow()
-
-    private val qualityByTask = ConcurrentHashMap<String, String>()
-
-    val qualityOptions = listOf(
-        QualityOption("360", "360p"),
-        QualityOption("720", "720p"),
-        QualityOption("1080", "1080p"),
-        QualityOption("audio", "Áudio"),
-    )
+    private val mediaByTask = ConcurrentHashMap<String, String>()
 
     init {
+        AppSettings.init(application)
         viewModelScope.launch(Dispatchers.IO) {
             restoreHistory()
             _downloads
-                .map { list -> list.joinToString("|") { "${it.id}:${it.status}:${it.title}:${it.message}" } }
+                .map { list ->
+                    list.joinToString("|") {
+                        "${it.id}:${it.status}:${it.title}:${it.message}:${it.progress.toInt()}"
+                    }
+                }
                 .distinctUntilChanged()
                 .collect { persistHistory(_downloads.value) }
         }
@@ -56,24 +50,24 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         _urlInput.value = url
     }
 
-    fun onQualityChange(option: QualityOption) {
-        _quality.value = option
-    }
-
-    fun startDownload() {
-        val raw = _urlInput.value.trim()
-        if (raw.isEmpty()) return
-
-        val option = _quality.value
-        launchTask(normalizeUrl(raw), option.value, option.label)
+    fun startDownload(
+        url: String,
+        media: String = DownloadItem.MEDIA_VIDEO,
+        quality: String = DownloadItem.QUALITY_MAX,
+        playlist: Boolean = false,
+    ) {
+        val normalized = normalizeUrl(url.trim())
+        if (!normalized.startsWith("http")) return
+        launchTask(normalized, media, quality, playlist)
         _urlInput.value = ""
     }
 
     fun retry(item: DownloadItem) {
         launchTask(
             url = item.url,
-            qualityValue = item.qualityValue.ifBlank { DEFAULT_QUALITY.value },
-            qualityLabel = item.qualityLabel.ifBlank { DEFAULT_QUALITY.label },
+            media = item.media,
+            quality = item.quality,
+            playlist = item.playlist,
             replaceId = item.id,
         )
     }
@@ -91,21 +85,36 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         _downloads.update { list -> list.filterNot { it.id == item.id } }
     }
 
+    fun purgeOldHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _downloads.update { list -> list.filter { !isExpired(it) } }
+        }
+    }
+
+    private fun isExpired(item: DownloadItem): Boolean {
+        if (!AppSettings.autoClearHistory.value) return false
+        if (item.status == DownloadStatus.QUEUED || item.status == DownloadStatus.DOWNLOADING) {
+            return false
+        }
+        return item.createdAt < System.currentTimeMillis() - SEVEN_DAYS
+    }
+
     private fun launchTask(
         url: String,
-        qualityValue: String,
-        qualityLabel: String,
+        media: String,
+        quality: String,
+        playlist: Boolean,
         replaceId: String? = null,
     ) {
         val taskId = UUID.randomUUID().toString().take(8)
-        qualityByTask[taskId] = qualityValue
+        mediaByTask[taskId] = media
 
         val fresh = DownloadItem(
             id = taskId,
             url = url,
-            qualityValue = qualityValue,
-            qualityLabel = qualityLabel,
-            isAudio = qualityValue == "audio",
+            media = media,
+            quality = quality,
+            playlist = playlist,
         )
 
         _downloads.update { list ->
@@ -121,7 +130,9 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             DownloadEngine.submit(
                 taskId = taskId,
                 url = url,
-                quality = qualityValue,
+                media = media,
+                quality = quality,
+                playlist = playlist,
                 outputDir = outputDirectory().absolutePath,
                 ffmpegPath = FFmpegResolver.resolve(getApplication()),
                 listener = bridgeListener,
@@ -143,15 +154,20 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
         override fun onComplete(taskId: String, filePath: String) {
             viewModelScope.launch(Dispatchers.IO) {
-                val source = File(filePath)
-                val isVideo = qualityByTask[taskId] != "audio"
-                val visible = MediaStoreExporter.export(getApplication(), source, isVideo)
+                val media = mediaByTask[taskId] ?: DownloadItem.MEDIA_VIDEO
+                val isVideo = media != DownloadItem.MEDIA_AUDIO
+                val sources = parsePaths(filePath)
+                val exported = sources.mapNotNull { path ->
+                    MediaStoreExporter.export(getApplication(), File(path), isVideo)
+                }
+                val visible = exported.ifEmpty { sources }
 
                 updateItem(taskId) { item ->
                     item.copy(
                         status = DownloadStatus.COMPLETED,
                         progress = 1f,
-                        message = visible ?: filePath,
+                        message = visible.joinToString("\n"),
+                        paths = visible,
                     )
                 }
             }
@@ -162,6 +178,20 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 item.copy(status = DownloadStatus.ERROR, message = message)
             }
         }
+    }
+
+    private fun parsePaths(raw: String): List<String> {
+        val trimmed = raw.trim()
+        if (trimmed.startsWith("[")) {
+            val array = runCatching { JSONArray(trimmed) }.getOrNull()
+            if (array != null) {
+                val values = (0 until array.length()).mapNotNull { index ->
+                    array.optString(index).takeIf { it.isNotBlank() }
+                }
+                if (values.isNotEmpty()) return values
+            }
+        }
+        return listOf(raw)
     }
 
     private fun updateItem(taskId: String, transform: (DownloadItem) -> DownloadItem) {
@@ -183,14 +213,17 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             val stored = obj.optString("status")
             val finished = stored == DownloadStatus.COMPLETED.name
             val message = obj.optString("message")
+            val media = obj.optString("media").ifBlank { legacyMedia(obj) }
+            val quality = obj.optString("quality").ifBlank { legacyQuality(obj) }
+            val paths = readPaths(obj, finished, message)
 
             DownloadItem(
                 id = id,
                 url = url,
                 title = obj.optString("title").ifBlank { url },
-                qualityValue = obj.optString("qualityValue"),
-                qualityLabel = obj.optString("qualityLabel"),
-                isAudio = obj.optBoolean("isAudio"),
+                media = media,
+                quality = quality,
+                playlist = obj.optBoolean("playlist"),
                 status = if (finished) DownloadStatus.COMPLETED else DownloadStatus.ERROR,
                 progress = if (finished) 1f else 0f,
                 message = when {
@@ -198,12 +231,38 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                     message.isBlank() -> "Download interrompido"
                     else -> message
                 },
+                paths = paths,
+                createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
             )
         }
 
-        if (restored.isNotEmpty()) {
-            _downloads.update { current -> if (current.isEmpty()) restored else current }
+        val cleaned = restored.filterNot { isExpired(it) }
+        if (cleaned.isNotEmpty()) {
+            _downloads.update { current -> if (current.isEmpty()) cleaned else current }
         }
+    }
+
+    private fun legacyMedia(obj: JSONObject): String =
+        if (obj.optBoolean("isAudio") || obj.optString("qualityValue") == "audio") {
+            DownloadItem.MEDIA_AUDIO
+        } else {
+            DownloadItem.MEDIA_VIDEO
+        }
+
+    private fun legacyQuality(obj: JSONObject): String = when (obj.optString("qualityValue")) {
+        "360" -> DownloadItem.QUALITY_LOW
+        "720" -> DownloadItem.QUALITY_MEDIUM
+        "1080" -> DownloadItem.QUALITY_MAX
+        else -> DownloadItem.QUALITY_MEDIUM
+    }
+
+    private fun readPaths(obj: JSONObject, finished: Boolean, message: String): List<String> {
+        val array = obj.optJSONArray("paths")
+        if (array != null) {
+            return (0 until array.length()).mapNotNull { array.optString(it).takeIf { s -> s.isNotBlank() } }
+        }
+        if (!finished || message.isBlank()) return emptyList()
+        return message.split("\n").filter { it.isNotBlank() }
     }
 
     private fun persistHistory(items: List<DownloadItem>) {
@@ -215,11 +274,13 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                         put("id", item.id)
                         put("url", item.url)
                         put("title", item.title)
-                        put("qualityValue", item.qualityValue)
-                        put("qualityLabel", item.qualityLabel)
-                        put("isAudio", item.isAudio)
+                        put("media", item.media)
+                        put("quality", item.quality)
+                        put("playlist", item.playlist)
                         put("status", item.status.name)
                         put("message", item.message ?: "")
+                        put("paths", JSONArray(item.paths))
+                        put("createdAt", item.createdAt)
                     },
                 )
             }
@@ -241,6 +302,6 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     }
 
     companion object {
-        private val DEFAULT_QUALITY = QualityOption("720", "720p")
+        private const val SEVEN_DAYS = 7L * 24 * 60 * 60 * 1000
     }
 }

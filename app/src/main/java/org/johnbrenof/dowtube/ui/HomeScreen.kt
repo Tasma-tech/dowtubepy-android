@@ -1,370 +1,433 @@
 package org.johnbrenof.dowtube.ui
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.johnbrenof.dowtube.R
-import org.johnbrenof.dowtube.download.DownloadStatus
+import org.johnbrenof.dowtube.download.DownloadItem
 import org.johnbrenof.dowtube.download.DownloadViewModel
-import org.johnbrenof.dowtube.download.QualityOption
-import org.johnbrenof.dowtube.ui.components.DownloadItemCard
+import org.johnbrenof.dowtube.settings.AppSettings
+import org.johnbrenof.dowtube.ui.components.AppDivider
+import org.johnbrenof.dowtube.ui.components.UnderlineOption
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: DownloadViewModel = viewModel(),
+    onDownloadStarted: () -> Unit = {},
 ) {
     val url by viewModel.urlInput.collectAsState()
-    val quality by viewModel.quality.collectAsState()
-    val downloads by viewModel.downloads.collectAsState()
+    val maxQuality by AppSettings.maxQualityVideo.collectAsState()
     val clipboard = LocalClipboardManager.current
+    val focusManager = LocalFocusManager.current
+    var showOptions by rememberSaveable { mutableStateOf(false) }
 
-    val busy = downloads.any {
-        it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.DOWNLOADING
-    }
     val urlValid = isValidUrl(url)
 
-    Scaffold(
-        topBar = { AppTopBar() },
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize(),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(top = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            DownloadPanel(
-                url = url,
-                urlValid = urlValid,
-                busy = busy,
-                quality = quality,
-                options = viewModel.qualityOptions,
-                onUrlChange = viewModel::onUrlChange,
-                onQualityChange = viewModel::onQualityChange,
-                onStart = viewModel::startDownload,
-                onPaste = {
-                    val text = clipboard.getText()?.text?.trim().orEmpty()
-                    if (text.isNotEmpty()) viewModel.onUrlChange(text)
-                },
+            Image(
+                painter = painterResource(R.drawable.ic_logo),
+                contentDescription = null,
+                modifier = Modifier.size(42.dp),
             )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.app_tagline),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
-            SectionHeader(
-                count = downloads.size,
-                hasFinished = downloads.any {
-                    it.status == DownloadStatus.COMPLETED || it.status == DownloadStatus.ERROR
-                },
-                onClear = viewModel::clearFinished,
-            )
+        Spacer(Modifier.height(48.dp))
 
-            if (downloads.isEmpty()) {
-                EmptyState(modifier = Modifier.fillMaxSize())
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(downloads, key = { it.id }) { item ->
-                        DownloadItemCard(
-                            item = item,
-                            onRetry = { viewModel.retry(item) },
-                            onRemove = { viewModel.remove(item) },
-                            modifier = Modifier.animateItem(),
+        TextField(
+            value = url,
+            onValueChange = viewModel::onUrlChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text(stringResource(R.string.url_hint)) },
+            singleLine = true,
+            isError = url.isNotBlank() && !urlValid,
+            supportingText = {
+                if (url.isNotBlank() && !urlValid) {
+                    Text(stringResource(R.string.url_invalid))
+                }
+            },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (url.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onUrlChange("") }) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.clear_link),
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            val text = clipboard.getText()?.text?.trim().orEmpty()
+                            if (text.isNotEmpty()) viewModel.onUrlChange(text)
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ContentPaste,
+                            contentDescription = stringResource(R.string.paste),
                         )
                     }
                 }
-            }
+            },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                errorContainerColor = Color.Transparent,
+                focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                errorTextColor = MaterialTheme.colorScheme.onBackground,
+                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
+                errorIndicatorColor = MaterialTheme.colorScheme.primary,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    if (urlValid) {
+                        focusManager.clearFocus()
+                        showOptions = true
+                    }
+                },
+            ),
+        )
+
+        Spacer(Modifier.height(18.dp))
+
+        Button(
+            onClick = {
+                focusManager.clearFocus()
+                showOptions = true
+            },
+            enabled = urlValid,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Download,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = stringResource(R.string.download),
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
+
+    if (showOptions) {
+        ModalBottomSheet(
+            onDismissRequest = { showOptions = false },
+            sheetState = rememberModalBottomSheetState(),
+            containerColor = MaterialTheme.colorScheme.background,
+            dragHandle = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Spacer(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(3.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                shape = RoundedCornerShape(50),
+                            ),
+                    )
+                }
+            },
+        ) {
+            DownloadOptionsContent(
+                url = url,
+                maxQualityDefault = maxQuality,
+                onDismiss = { showOptions = false },
+                onStart = { media, quality, playlist ->
+                    showOptions = false
+                    viewModel.startDownload(url, media, quality, playlist)
+                    onDownloadStarted()
+                },
+            )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppTopBar() {
-    TopAppBar(
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(R.drawable.ic_logo),
-                    contentDescription = null,
-                    modifier = Modifier.size(44.dp),
+private fun DownloadOptionsContent(
+    url: String,
+    maxQualityDefault: Boolean,
+    onDismiss: () -> Unit,
+    onStart: (media: String, quality: String, playlist: Boolean) -> Unit,
+) {
+    val isPlaylist = remember(url) { looksLikePlaylist(url) }
+    var media by remember { mutableStateOf(DownloadItem.MEDIA_VIDEO) }
+    var quality by remember {
+        mutableStateOf(
+            if (maxQualityDefault) DownloadItem.QUALITY_MAX else DownloadItem.QUALITY_MEDIUM,
+        )
+    }
+    var downloadAll by remember { mutableStateOf(true) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.options_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.clear_link),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.width(12.dp))
-                Column {
+            }
+        }
+
+        Text(
+            text = url,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        if (isPlaylist) {
+            Spacer(Modifier.height(20.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { downloadAll = !downloadAll },
+                ) {
                     Text(
-                        text = "DowTube",
-                        style = MaterialTheme.typography.titleLarge,
+                        text = stringResource(R.string.playlist_all),
+                        style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onBackground,
                     )
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "Vídeos e músicas em um só lugar",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = stringResource(
+                            if (downloadAll) R.string.playlist_hint else R.string.playlist_single,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                Checkbox(
+                    checked = downloadAll,
+                    onCheckedChange = { downloadAll = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary,
+                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                )
             }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground,
-        ),
-    )
-}
+            AppDivider(Modifier.padding(top = 16.dp))
+        }
 
-@Composable
-private fun DownloadPanel(
-    url: String,
-    urlValid: Boolean,
-    busy: Boolean,
-    quality: QualityOption,
-    options: List<QualityOption>,
-    onUrlChange: (String) -> Unit,
-    onQualityChange: (QualityOption) -> Unit,
-    onStart: () -> Unit,
-    onPaste: () -> Unit,
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 3.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
-            OutlinedTextField(
-                value = url,
-                onValueChange = onUrlChange,
-                label = { Text("Link do vídeo") },
-                placeholder = { Text("https://www.youtube.com/watch?v=…") },
-                singleLine = true,
-                isError = url.isNotBlank() && !urlValid,
-                supportingText = {
-                    if (url.isNotBlank() && !urlValid) {
-                        Text("Use um link válido, começando com http")
-                    }
+        Spacer(Modifier.height(22.dp))
+        Text(
+            text = stringResource(R.string.type_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            UnderlineOption(
+                label = stringResource(R.string.type_video),
+                selected = media == DownloadItem.MEDIA_VIDEO,
+                onClick = {
+                    media = DownloadItem.MEDIA_VIDEO
+                    if (maxQualityDefault) quality = DownloadItem.QUALITY_MAX
                 },
-                trailingIcon = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (url.isNotEmpty()) {
-                            IconButton(onClick = { onUrlChange("") }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = "Limpar link",
-                                )
-                            }
-                        }
-                        IconButton(onClick = onPaste) {
-                            Icon(
-                                imageVector = Icons.Filled.ContentPaste,
-                                contentDescription = "Colar da área de transferência",
-                            )
-                        }
-                    }
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(16.dp))
+            UnderlineOption(
+                label = stringResource(R.string.type_audio),
+                selected = media == DownloadItem.MEDIA_AUDIO,
+                onClick = { media = DownloadItem.MEDIA_AUDIO },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = stringResource(R.string.quality_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            UnderlineOption(
+                label = stringResource(R.string.quality_max),
+                selected = quality == DownloadItem.QUALITY_MAX,
+                onClick = { quality = DownloadItem.QUALITY_MAX },
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(16.dp))
+            UnderlineOption(
+                label = stringResource(R.string.quality_medium),
+                selected = quality == DownloadItem.QUALITY_MEDIUM,
+                onClick = { quality = DownloadItem.QUALITY_MEDIUM },
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(16.dp))
+            UnderlineOption(
+                label = stringResource(R.string.quality_low),
+                selected = quality == DownloadItem.QUALITY_LOW,
+                onClick = { quality = DownloadItem.QUALITY_LOW },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(
+                when {
+                    media == DownloadItem.MEDIA_AUDIO && quality == DownloadItem.QUALITY_MAX ->
+                        R.string.hint_audio_max
+                    media == DownloadItem.MEDIA_AUDIO && quality == DownloadItem.QUALITY_LOW ->
+                        R.string.hint_audio_low
+                    media == DownloadItem.MEDIA_AUDIO ->
+                        R.string.hint_audio_medium
+                    quality == DownloadItem.QUALITY_MAX ->
+                        R.string.hint_video_max
+                    quality == DownloadItem.QUALITY_LOW ->
+                        R.string.hint_video_low
+                    else ->
+                        R.string.hint_video_medium
                 },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Uri,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = { if (urlValid) onStart() },
-                ),
-            )
-
-            Spacer(Modifier.height(14.dp))
-
-            Text(
-                text = "Qualidade",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                options.forEach { option ->
-                    FilterChip(
-                        selected = quality.value == option.value,
-                        onClick = { onQualityChange(option) },
-                        label = {
-                            Text(
-                                text = option.label,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            val buttonColors = if (busy) {
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    disabledContainerColor = MaterialTheme.colorScheme.primary,
-                    disabledContentColor = MaterialTheme.colorScheme.onPrimary,
-                )
-            } else {
-                ButtonDefaults.buttonColors()
-            }
-
-            Button(
-                onClick = onStart,
-                enabled = urlValid && !busy,
-                colors = buttonColors,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-            ) {
-                if (busy) {
-                    CircularProgressIndicator(
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text("Baixando…", style = MaterialTheme.typography.labelLarge)
-                } else {
-                    Icon(
-                        imageVector = Icons.Filled.Download,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text("Baixar", style = MaterialTheme.typography.labelLarge)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(
-    count: Int,
-    hasFinished: Boolean,
-    onClear: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 8.dp, top = 20.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "Downloads",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        if (count > 0) {
-            Spacer(Modifier.width(8.dp))
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Text(
-                    text = count.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                )
-            }
-        }
-        Spacer(Modifier.weight(1f))
-        if (hasFinished) {
-            TextButton(onClick = onClear) {
-                Icon(
-                    imageVector = Icons.Filled.DeleteSweep,
-                    contentDescription = null,
-                    modifier = Modifier.size(17.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("Limpar", style = MaterialTheme.typography.labelMedium)
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(bottom = 64.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ic_logo),
-            contentDescription = null,
-            modifier = Modifier.size(96.dp),
-        )
-        Spacer(Modifier.height(18.dp))
-        Text(
-            text = "Nenhum download ainda",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "Cole um link acima e toque em Baixar\npara começar.",
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+        )
+
+        Spacer(Modifier.height(26.dp))
+        Button(
+            onClick = { onStart(media, quality, downloadAll && isPlaylist) },
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Download,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = stringResource(R.string.download),
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+        Spacer(
+            modifier = Modifier
+                .navigationBarsPadding()
+                .height(12.dp),
         )
     }
+}
+
+private fun looksLikePlaylist(url: String): Boolean {
+    val value = url.lowercase()
+    return value.contains("list=") ||
+        value.contains("/playlist") ||
+        value.contains("/set?") ||
+        value.contains("/album") ||
+        value.contains("/mixes")
 }
 
 private fun isValidUrl(url: String): Boolean {
