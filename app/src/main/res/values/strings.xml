@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DowTube</string>
+    <string name="app_tagline">Vídeos e músicas em um só lugar</string>
+
+    <string name="nav_home">Início</string>
+    <string name="nav_history">Histórico</string>
+    <string name="nav_settings">Configurações</string>
+
+    <string name="url_hint">Cole o link aqui</string>
+    <string name="url_invalid">Use um link válido, começando com http</string>
+    <string name="paste">Colar</string>
+    <string name="clear_link">Limpar link</string>
+    <string name="download">Baixar</string>
+    <string name="downloading">Baixando…</string>
+
+    <string name="options_title">Opções de download</string>
+    <string name="type_label">Tipo</string>
+    <string name="type_video">Vídeo</string>
+    <string name="type_audio">Áudio</string>
+    <string name="quality_label">Qualidade</string>
+    <string name="quality_max">Máxima</string>
+    <string name="quality_medium">Média</string>
+    <string name="quality_low">Baixa</string>
+    <string name="hint_video_max">Melhor disponível, sem limite de resolução</string>
+    <string name="hint_video_medium">MP4 · até 720p</string>
+    <string name="hint_video_low">MP4 · até 360p</string>
+    <string name="hint_audio_max">MP3 · 320 kbps</string>
+    <string name="hint_audio_medium">MP3 · 192 kbps</string>
+    <string name="hint_audio_low">MP3 · 128 kbps</string>
+    <string name="playlist_all">Baixar tudo</string>
+    <string name="playlist_hint">Playlist detectada — baixa todos os itens</string>
+    <string name="playlist_single">Baixa somente este vídeo da playlist</string>
+
+    <string name="history_title">Histórico</string>
+    <string name="history_empty">Nenhum download ainda</string>
+    <string name="history_empty_hint">Cole um link na aba Início e toque em Baixar.</string>
+    <string name="clear">Limpar</string>
+    <string name="status_queued">na fila</string>
+    <string name="status_downloading">baixando…</string>
+    <string name="status_completed">concluído</string>
+    <string name="status_error">falhou</string>
+    <string name="open_link">Abrir link</string>
+    <string name="open_file">Abrir arquivo</string>
+    <string name="copy_path">Copiar caminho</string>
+    <string name="retry">Tentar de novo</string>
+    <string name="discard">Descartar</string>
+    <string name="remove">Remover da lista</string>
+
+    <string name="settings_title">Configurações</string>
+    <string name="section_downloads">Downloads</string>
+    <string name="setting_max_quality">Baixar vídeos na máxima qualidade</string>
+    <string name="setting_max_quality_desc">Usa a maior resolução disponível como padrão dos vídeos</string>
+    <string name="section_history">Histórico</string>
+    <string name="setting_auto_clear">Limpar histórico após 7 dias</string>
+    <string name="setting_auto_clear_desc">Remove automaticamente os itens com mais de 7 dias</string>
+    <string name="section_appearance">Aparência</string>
+    <string name="setting_language">Idioma</string>
+    <string name="lang_system">Sistema</string>
+    <string name="lang_pt">Português</string>
+    <string name="lang_en">English</string>
+    <string name="setting_theme">Tema</string>
+    <string name="theme_system">Sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Escuro</string>
+    <string name="section_about">Sobre</string>
+    <string name="about_developer">Desenvolvedor</string>
+    <string name="about_source">Código aberto</string>
+    <string name="about_license">Licença do app</string>
+    <string name="about_license_value">GPL-3.0</string>
+    <string name="about_version">Versão do app</string>
+    <string name="about_libraries">Bibliotecas usadas</string>
+    <string name="lib_ytdlp">yt-dlp</string>
+    <string name="lib_ffmpeg">FFmpeg</string>
+    <string name="lib_chaquopy">Chaquopy</string>
+    <string name="lib_compose">Jetpack Compose</string>
+    <string name="lib_material3">Material 3</string>
+    <string name="lib_mutagen">Mutagen</string>
+
+    <string name="open">Abrir</string>
+    <string name="copied">Caminho copiado</string>
+    <string name="file_error">Não foi possível abrir o arquivo</string>
+    <string name="no_app">Nenhum app encontrado para abrir este link</string>
+</resources>
