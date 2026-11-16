@@ -31,6 +31,9 @@
     <string name="playlist_all">Download all</string>
     <string name="playlist_hint">Playlist detected — downloads every item</string>
     <string name="playlist_single">Downloads only this video from the playlist</string>
+    <string name="playlist_items_title">Playlist items</string>
+    <string name="playlist_selected_count">%1$d of %2$d selected</string>
+    <string name="playlist_none_selected">Select at least one item</string>
 
     <string name="history_title">History</string>
     <string name="history_empty">No downloads yet</string>

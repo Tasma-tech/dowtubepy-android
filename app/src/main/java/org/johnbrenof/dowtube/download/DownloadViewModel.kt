@@ -23,6 +23,9 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     private val _preview = MutableStateFlow(PreviewState())
     val preview: StateFlow<PreviewState> = _preview.asStateFlow()
 
+    private val _selectedItems = MutableStateFlow<Set<Int>>(emptySet())
+    val selectedItems: StateFlow<Set<Int>> = _selectedItems.asStateFlow()
+
     private var probeJob: Job? = null
 
     val downloads get() = DownloadRepository.downloads
@@ -48,6 +51,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         val trimmed = url.trim()
         if (!UrlRules.isValidUrl(trimmed)) {
             _preview.value = PreviewState()
+            _selectedItems.value = emptySet()
             return
         }
         if (_preview.value.url == trimmed && _preview.value.info != null) {
@@ -55,6 +59,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             return
         }
         _preview.value = PreviewState(url = trimmed, loading = true)
+        _selectedItems.value = emptySet()
         probeJob = viewModelScope.launch {
             delay(450)
             val result = withContext(Dispatchers.IO) {
@@ -62,7 +67,18 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             }
             if (_urlInput.value.trim() != trimmed) return@launch
             _preview.value = PreviewState(url = trimmed, loading = false, info = result)
+            _selectedItems.value = result?.items.orEmpty().mapTo(HashSet()) { it.position }
         }
+    }
+
+    fun toggleItem(position: Int) {
+        _selectedItems.update { current ->
+            if (position in current) current - position else current + position
+        }
+    }
+
+    fun setSelected(positions: Set<Int>) {
+        _selectedItems.value = positions
     }
 
     fun startDownload(
@@ -74,9 +90,18 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         val trimmed = url.trim()
         if (!UrlRules.isValidUrl(trimmed)) return
         val preview = _preview.value.takeIf { it.url == trimmed }?.info
-        DownloadRepository.enqueue(trimmed, media, quality, playlist, preview)
+        val items = preview?.items.orEmpty()
+        val selection = _selectedItems.value
+        if (items.isNotEmpty() && selection.isEmpty()) return
+        val playlistItems = if (items.isEmpty()) {
+            ""
+        } else {
+            selection.sorted().joinToString(",")
+        }
+        DownloadRepository.enqueue(trimmed, media, quality, playlist, preview, null, playlistItems)
         _urlInput.value = ""
         _preview.value = PreviewState()
+        _selectedItems.value = emptySet()
     }
 
     fun retry(item: DownloadItem) = DownloadRepository.retry(item)

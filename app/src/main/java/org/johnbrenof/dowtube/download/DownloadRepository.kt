@@ -59,6 +59,7 @@ object DownloadRepository {
         playlist: Boolean,
         preview: PreviewInfo?,
         replaceId: String? = null,
+        playlistItems: String = "",
     ): String? {
         if (!ready.get()) return null
         val normalized = UrlRules.normalize(url.trim())
@@ -75,6 +76,7 @@ object DownloadRepository {
             media = media,
             quality = quality,
             playlist = playlist,
+            playlistItems = playlistItems,
         )
 
         _downloads.update { list ->
@@ -93,13 +95,22 @@ object DownloadRepository {
             putExtra(DownloadService.EXTRA_MEDIA, media)
             putExtra(DownloadService.EXTRA_QUALITY, quality)
             putExtra(DownloadService.EXTRA_PLAYLIST, playlist)
+            putExtra(DownloadService.EXTRA_PLAYLIST_ITEMS, playlistItems)
         }
         ContextCompat.startForegroundService(app, intent)
         return taskId
     }
 
     fun retry(item: DownloadItem) {
-        enqueue(item.url, item.media, item.quality, item.playlist, previewOf(item), item.id)
+        enqueue(
+            item.url,
+            item.media,
+            item.quality,
+            item.playlist,
+            previewOf(item),
+            item.id,
+            item.playlistItems,
+        )
     }
 
     fun remove(item: DownloadItem) {
@@ -228,6 +239,7 @@ object DownloadRepository {
                 media = media,
                 quality = quality,
                 playlist = obj.optBoolean("playlist"),
+                playlistItems = obj.optString("playlistItems"),
                 status = if (finished) DownloadStatus.COMPLETED else DownloadStatus.ERROR,
                 progress = if (finished) 1f else 0f,
                 message = when {
@@ -282,6 +294,7 @@ object DownloadRepository {
                         put("media", item.media)
                         put("quality", item.quality)
                         put("playlist", item.playlist)
+                        put("playlistItems", item.playlistItems)
                         put("status", item.status.name)
                         put("message", item.message ?: "")
                         put("paths", JSONArray(item.paths))

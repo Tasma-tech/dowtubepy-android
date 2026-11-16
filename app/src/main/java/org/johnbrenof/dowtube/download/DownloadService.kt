@@ -46,6 +46,7 @@ class DownloadService : Service() {
         val media = intent.getStringExtra(EXTRA_MEDIA) ?: DownloadItem.MEDIA_VIDEO
         val quality = intent.getStringExtra(EXTRA_QUALITY) ?: DownloadItem.QUALITY_MAX
         val playlist = intent.getBooleanExtra(EXTRA_PLAYLIST, false)
+        val playlistItems = intent.getStringExtra(EXTRA_PLAYLIST_ITEMS).orEmpty()
 
         val wasIdle = activeTasks.getAndIncrement() == 0
         startForegroundIfNeeded(wasIdle)
@@ -56,6 +57,7 @@ class DownloadService : Service() {
             media = media,
             quality = quality,
             playlist = playlist,
+            playlistItems = playlistItems,
             outputDir = DownloadRepository.outputDirectory().absolutePath,
             ffmpegPath = FFmpegResolver.resolve(this),
             listener = ServiceListener(taskId, media),
@@ -296,6 +298,7 @@ class DownloadService : Service() {
         const val EXTRA_MEDIA = "media"
         const val EXTRA_QUALITY = "quality"
         const val EXTRA_PLAYLIST = "playlist"
+        const val EXTRA_PLAYLIST_ITEMS = "playlist_items"
 
         private const val FOREGROUND_ID = 1001
         private const val CHANNEL_PROGRESS = "download_progress"

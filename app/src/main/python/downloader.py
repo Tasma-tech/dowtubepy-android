@@ -41,7 +41,16 @@ def _final_ext(media, has_ffmpeg):
     return "mp4" if has_ffmpeg else None
 
 
-def _build_opts(media, quality, is_playlist, outtmpl, ffmpeg_path, listener, task_id):
+def _build_opts(
+    media,
+    quality,
+    is_playlist,
+    outtmpl,
+    ffmpeg_path,
+    listener,
+    task_id,
+    playlist_items="",
+):
     has_ffmpeg = bool(ffmpeg_path)
 
     opts = {
@@ -53,6 +62,9 @@ def _build_opts(media, quality, is_playlist, outtmpl, ffmpeg_path, listener, tas
         "quiet": True,
         "no_warnings": True,
     }
+
+    if is_playlist and playlist_items:
+        opts["playlist_items"] = playlist_items
 
     if has_ffmpeg:
         opts["ffmpeg_location"] = ffmpeg_path
@@ -354,7 +366,17 @@ def apply_audio_metadata(path, info):
         _tag_mp4(path, info, cover, cover_mime, lyrics, lang)
 
 
-def download(task_id, url, media, quality, playlist, output_dir, ffmpeg_path, listener):
+def download(
+    task_id,
+    url,
+    media,
+    quality,
+    playlist,
+    output_dir,
+    ffmpeg_path,
+    listener,
+    playlist_items="",
+):
     try:
         started_at = time.time()
 
@@ -373,7 +395,14 @@ def download(task_id, url, media, quality, playlist, output_dir, ffmpeg_path, li
             outtmpl = os.path.join(output_dir, "%(title)s.%(ext)s")
 
         opts = _build_opts(
-            media, quality, is_playlist, outtmpl, ffmpeg_path, listener, task_id
+            media,
+            quality,
+            is_playlist,
+            outtmpl,
+            ffmpeg_path,
+            listener,
+            task_id,
+            playlist_items,
         )
 
         store = {"paths": [], "infos": {}}
@@ -465,6 +494,20 @@ def probe(url):
     if entries is not None:
         entries = [entry for entry in entries if entry]
         first = entries[0] if entries else {}
+        items = []
+        for position, entry in enumerate(entries, start=1):
+            if not isinstance(entry, dict):
+                continue
+            items.append(
+                {
+                    "position": position,
+                    "id": entry.get("id") or "",
+                    "title": entry.get("title") or "",
+                    "thumbnail": _thumbnail_of(entry)
+                    or _fallback_thumbnail(entry, url),
+                    "duration": int(entry.get("duration") or 0),
+                }
+            )
         return json.dumps(
             {
                 "title": info.get("title") or first.get("title") or "",
@@ -478,6 +521,7 @@ def probe(url):
                 "duration": int(first.get("duration") or 0),
                 "count": len(entries),
                 "playlist": True,
+                "items": items,
             }
         )
 
@@ -489,5 +533,6 @@ def probe(url):
             "duration": int(info.get("duration") or 0),
             "count": 1,
             "playlist": False,
+            "items": [],
         }
     )

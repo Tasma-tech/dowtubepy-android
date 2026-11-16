@@ -31,6 +31,9 @@
     <string name="playlist_all">Baixar tudo</string>
     <string name="playlist_hint">Playlist detectada — baixa todos os itens</string>
     <string name="playlist_single">Baixa somente este vídeo da playlist</string>
+    <string name="playlist_items_title">Itens da playlist</string>
+    <string name="playlist_selected_count">%1$d de %2$d selecionados</string>
+    <string name="playlist_none_selected">Selecione pelo menos um item</string>
 
     <string name="history_title">Histórico</string>
     <string name="history_empty">Nenhum download ainda</string>

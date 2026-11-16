@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -58,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +70,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import org.johnbrenof.dowtube.R
 import org.johnbrenof.dowtube.download.DownloadItem
 import org.johnbrenof.dowtube.download.DownloadViewModel
+import org.johnbrenof.dowtube.download.PreviewEntry
 import org.johnbrenof.dowtube.download.PreviewState
 import org.johnbrenof.dowtube.settings.AppSettings
 import org.johnbrenof.dowtube.ui.components.AppDivider
@@ -83,12 +87,15 @@ fun HomeScreen(
 ) {
     val url by viewModel.urlInput.collectAsState()
     val preview by viewModel.preview.collectAsState()
+    val selectedItems by viewModel.selectedItems.collectAsState()
     val maxQuality by AppSettings.maxQualityVideo.collectAsState()
     val clipboard = LocalClipboardManager.current
     val focusManager = LocalFocusManager.current
     var showOptions by rememberSaveable { mutableStateOf(false) }
 
     val urlValid = UrlRules.isValidUrl(url)
+    val pickableItems = preview.info?.items.orEmpty()
+    val selectionReady = pickableItems.isEmpty() || selectedItems.isNotEmpty()
 
     Column(
         modifier = Modifier
@@ -117,6 +124,23 @@ fun HomeScreen(
         } else {
             PreviewSection(preview = preview, valid = urlValid)
 
+            if (pickableItems.isNotEmpty()) {
+                PlaylistPicker(
+                    items = pickableItems,
+                    selected = selectedItems,
+                    onToggle = viewModel::toggleItem,
+                    onSelectAll = { checked ->
+                        viewModel.setSelected(
+                            if (checked) {
+                                pickableItems.mapTo(HashSet()) { it.position }
+                            } else {
+                                emptySet()
+                            },
+                        )
+                    },
+                )
+            }
+
             androidx.compose.animation.AnimatedVisibility(
                 visible = url.isNotBlank(),
                 enter = androidx.compose.animation.expandVertically(
@@ -132,7 +156,7 @@ fun HomeScreen(
                             focusManager.clearFocus()
                             showOptions = true
                         },
-                        enabled = urlValid,
+                        enabled = urlValid && selectionReady,
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -183,6 +207,7 @@ fun HomeScreen(
             DownloadOptionsContent(
                 url = url,
                 preview = preview,
+                selectedItems = selectedItems,
                 maxQualityDefault = maxQuality,
                 onDismiss = { showOptions = false },
                 onStart = { media, quality, playlist ->
@@ -437,14 +462,173 @@ private fun PreviewCard(preview: PreviewState) {
 }
 
 @Composable
+private fun PlaylistPicker(
+    items: List<PreviewEntry>,
+    selected: Set<Int>,
+    onToggle: (Int) -> Unit,
+    onSelectAll: (Boolean) -> Unit,
+) {
+    val allSelected = selected.size == items.size
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AppDivider(Modifier.padding(horizontal = 20.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = allSelected,
+                    role = Role.Checkbox,
+                    onValueChange = onSelectAll,
+                )
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.playlist_items_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = stringResource(
+                        R.string.playlist_selected_count,
+                        selected.size,
+                        items.size,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (selected.isEmpty()) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+            Checkbox(
+                checked = allSelected,
+                onCheckedChange = null,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 320.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            items.forEach { item ->
+                PlaylistItemRow(
+                    item = item,
+                    checked = item.position in selected,
+                    onToggle = { onToggle(item.position) },
+                )
+            }
+        }
+
+        if (selected.isEmpty()) {
+            Text(
+                text = stringResource(R.string.playlist_none_selected),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistItemRow(
+    item: PreviewEntry,
+    checked: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Checkbox,
+                onValueChange = { onToggle() },
+            )
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 72.dp, height = 42.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Thumbnail(
+                url = item.thumbnail,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+            if (item.thumbnail.isBlank()) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(20.dp),
+                )
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (item.duration > 0) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = formatDuration(item.duration),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        Spacer(Modifier.width(10.dp))
+
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null,
+            colors = CheckboxDefaults.colors(
+                checkedColor = MaterialTheme.colorScheme.primary,
+                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        )
+    }
+}
+
+@Composable
 private fun DownloadOptionsContent(
     url: String,
     preview: PreviewState,
+    selectedItems: Set<Int>,
     maxQualityDefault: Boolean,
     onDismiss: () -> Unit,
     onStart: (media: String, quality: String, playlist: Boolean) -> Unit,
 ) {
     val isPlaylist = remember(url) { UrlRules.looksLikePlaylist(url) || preview.info?.isPlaylist == true }
+    val items = preview.info?.items.orEmpty()
+    val hasSelection = items.isNotEmpty()
     var media by remember { mutableStateOf(DownloadItem.MEDIA_VIDEO) }
     var quality by remember {
         mutableStateOf(
@@ -519,35 +703,67 @@ private fun DownloadOptionsContent(
 
         if (isPlaylist) {
             Spacer(Modifier.height(20.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { downloadAll = !downloadAll },
-                ) {
-                    Text(
-                        text = stringResource(R.string.playlist_all),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(
-                            if (downloadAll) R.string.playlist_hint else R.string.playlist_single,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (hasSelection) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.playlist_items_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(
+                                R.string.playlist_selected_count,
+                                selectedItems.size,
+                                items.size,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (selectedItems.isEmpty()) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
-                Checkbox(
-                    checked = downloadAll,
-                    onCheckedChange = { downloadAll = it },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = MaterialTheme.colorScheme.primary,
-                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { downloadAll = !downloadAll },
+                    ) {
+                        Text(
+                            text = stringResource(R.string.playlist_all),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(
+                                if (downloadAll) R.string.playlist_hint else R.string.playlist_single,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Checkbox(
+                        checked = downloadAll,
+                        onCheckedChange = { downloadAll = it },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.primary,
+                            uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    )
+                }
             }
             AppDivider(Modifier.padding(top = 16.dp))
         }
@@ -631,7 +847,11 @@ private fun DownloadOptionsContent(
 
         Spacer(Modifier.height(26.dp))
         Button(
-            onClick = { onStart(media, quality, downloadAll && isPlaylist) },
+            onClick = {
+                val playlistFlag = if (hasSelection) true else downloadAll && isPlaylist
+                onStart(media, quality, playlistFlag)
+            },
+            enabled = !hasSelection || selectedItems.isNotEmpty(),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier
                 .fillMaxWidth()

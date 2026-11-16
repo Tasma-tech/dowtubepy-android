@@ -8,6 +8,7 @@ data class DownloadItem(
     val media: String = MEDIA_VIDEO,
     val quality: String = QUALITY_MAX,
     val playlist: Boolean = false,
+    val playlistItems: String = "",
     val status: DownloadStatus = DownloadStatus.QUEUED,
     val progress: Float = 0f,
     val message: String? = null,

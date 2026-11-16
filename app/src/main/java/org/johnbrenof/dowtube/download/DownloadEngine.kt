@@ -18,6 +18,7 @@ object DownloadEngine {
         media: String,
         quality: String,
         playlist: Boolean,
+        playlistItems: String,
         outputDir: String,
         ffmpegPath: String?,
         listener: DownloadListener,
@@ -39,6 +40,7 @@ object DownloadEngine {
                     outputDir,
                     ffmpegPath,
                     listener,
+                    playlistItems,
                 )
             } catch (t: Throwable) {
                 Log.e(TAG, "Falha na ponte Python para a task $taskId", t)
@@ -53,6 +55,23 @@ object DownloadEngine {
             val downloader = Python.getInstance().getModule("downloader")
             val raw = downloader.callAttr("probe", url)?.toString() ?: return null
             val json = org.json.JSONObject(raw)
+            val itemsArray = json.optJSONArray("items")
+            val items = buildList {
+                if (itemsArray != null) {
+                    for (i in 0 until itemsArray.length()) {
+                        val entry = itemsArray.optJSONObject(i) ?: continue
+                        add(
+                            PreviewEntry(
+                                position = entry.optInt("position"),
+                                id = entry.optString("id"),
+                                title = entry.optString("title"),
+                                thumbnail = entry.optString("thumbnail"),
+                                duration = entry.optLong("duration"),
+                            ),
+                        )
+                    }
+                }
+            }
             PreviewInfo(
                 title = json.optString("title"),
                 uploader = json.optString("uploader"),
@@ -60,6 +79,7 @@ object DownloadEngine {
                 duration = json.optLong("duration"),
                 entries = json.optInt("count"),
                 isPlaylist = json.optBoolean("playlist"),
+                items = items,
             )
         } catch (t: Throwable) {
             Log.w(TAG, "Falha ao sondar $url", t)
